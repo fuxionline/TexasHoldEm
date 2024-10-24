@@ -1,5 +1,7 @@
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 
 public class Hand {
     private Card[] cards;
@@ -25,64 +27,69 @@ public class Hand {
         this.handValue = calcHandValue();
     }
 
-    private HandVal calcHandValue() {
-        // Placeholder for the actual hand value calculation logic
-        // This will involve checking for various hand combinations
-        // such as pairs, straights, flushes, etc.
-
-        // Example logic (not complete):
-        // 1. Sort the cards by rank
-        Arrays.sort(cards, Comparator.comparing(Card::getRank));
-
-        // check for one pair
-        boolean isOnePair = false;
-        for (int i = 0; i < cards.length - 1; i++) {
-            if (cards[i].getRank().getValue() == cards[i + 1].getRank().getValue()) {
-                isOnePair = true;
-                break;
+    private boolean hasDuplicates() {
+        Set<String> cardCombinations = new HashSet<>();
+        for (Card card : cards) {
+            String combination = card.getSuit().ordinal() + "-" + card.getRank().ordinal();
+            if (!cardCombinations.add(combination)) {
+                return true; // Duplicate suit-rank combination found
             }
         }
-        if (isOnePair) {
-            return HandVal.PAIR;
-        }
+        return false; // No duplicates
+    }
 
-        // 2. Check for flush
-        boolean isFlush = Arrays.stream(cards).allMatch(card -> card.getSuit() == cards[0].getSuit());
-        if (isFlush) {
-            return HandVal.FLUSH;
-        }
-        // 3. Check for straight
+    private HandVal calcHandValue() {
+        // This method is used to calculate the actual hand value and return the highest possible value
+        // This involves checking the current hand against all possible hand values
+        // The hand value is then set to the highest possible value
+        // The hand value is then returned
+
+        // Check for duplicates
+        if (hasDuplicates()) return HandVal.NOT_VALID;
+
+        Arrays.sort(cards, Comparator.comparingInt(card -> card.getRank().ordinal()));
+
+        boolean isFlush = Arrays.stream(cards)
+                .allMatch(card -> card.getSuit() == cards[0].getSuit());
+
         boolean isStraight = true;
-        for (int i = 0; i < cards.length - 1; i++) {
-            if (cards[i].getRank().getValue() != cards[i + 1].getRank().getValue() - 1) {
+        for (int i = 1; i < cards.length; i++) {
+            if (cards[i].getRank().ordinal() != cards[i - 1].getRank().ordinal() + 1) {
                 isStraight = false;
                 break;
             }
         }
-        // Special case for Ace-low straight (A-2-3-4-5)
-        if (!isStraight && cards[0].getRank() == Rank.TWO && cards[1].getRank() == Rank.THREE &&
-                cards[2].getRank() == Rank.FOUR && cards[3].getRank() == Rank.FIVE && cards[4].getRank() == Rank.ACE) {
-            isStraight = true;
+
+        if (isFlush && isStraight) {
+            if (cards[0].getRank() == Rank.TEN && cards[4].getRank() == Rank.ACE) {
+                return HandVal.ROYAL_FLUSH;
+            }
+            return HandVal.STRAIGHT_FLUSH;
         }
-        if (isStraight) {
-            return HandVal.STRAIGHT;
+
+        int[] rankCounts = new int[Rank.values().length];
+        for (Card card : cards) {
+            rankCounts[card.getRank().ordinal()]++;
         }
-        // check for poker
-        boolean isPoker = false;
-        for (int i = 0; i < cards.length - 3; i++) {
-            if (cards[i].getRank().getValue() == cards[i + 1].getRank().getValue() &&
-                    cards[i].getRank().getValue() == cards[i + 2].getRank().getValue() &&
-                    cards[i].getRank().getValue() == cards[i + 3].getRank().getValue()) {
-                isPoker = true;
-                break;
+
+        boolean hasFour = false, hasThree = false, hasPair = false, hasTwoPairs = false;
+        for (int count : rankCounts) {
+            if (count == 4) hasFour = true;
+            if (count == 3) hasThree = true;
+            if (count == 2) {
+                if (hasPair) hasTwoPairs = true;
+                hasPair = true;
             }
         }
-        if (isPoker) {
-            return HandVal.POKER;
-        }
-        // 4. Check for pairs, three of a kind, four of a kind
 
-        // 5. Determine the highest value hand
+        if (hasFour) return HandVal.POKER;
+        if (hasThree && hasPair) return HandVal.FULL_HOUSE;
+        if (isFlush) return HandVal.FLUSH;
+        if (isStraight) return HandVal.STRAIGHT;
+        if (hasThree) return HandVal.THREE_OF_A_KIND;
+        if (hasTwoPairs) return HandVal.TWO_PAIRS;
+        if (hasPair) return HandVal.PAIR;
+
         return HandVal.HIGH_CARD;
     }
 
